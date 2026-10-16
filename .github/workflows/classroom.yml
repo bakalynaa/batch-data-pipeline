@@ -1,0 +1,68 @@
+name: Autograding Tests
+
+on:
+  - push
+  - workflow_dispatch
+  - repository_dispatch
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+
+    steps:
+      - name: Checkout student code
+        uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Start services
+        run: docker compose up -d
+
+      - name: Wait for Airflow scheduler
+        run: |
+          for i in {1..18}; do
+            if docker compose ps airflow-scheduler | grep -q "Up"; then
+              echo "Scheduler is running"
+              exit 0
+            fi
+            echo "Waiting for scheduler..."
+            docker compose ps
+            sleep 10
+          done
+
+          echo "Scheduler did not start"
+          docker compose logs airflow-scheduler
+          exit 1
+
+      - name: Run public tests
+        run: |
+          docker compose exec -T airflow-scheduler \
+            bash -c "cd /opt/airflow && PYTHONPATH=/opt/airflow pytest tests/"
+
+      - name: Checkout hidden tests
+        uses: actions/checkout@v4
+        with:
+          repository: VovaD199/Git912s18t001ht
+          token: ${{ secrets.Git912s18t001ht }}
+          path: hidden-tests-repo
+
+      - name: Copy hidden tests into container
+        run: |
+          docker cp hidden-tests-repo/tests_hidden \
+            $(docker compose ps -q airflow-scheduler):/opt/airflow/tests_hidden
+
+      - name: Run hidden tests
+        run: |
+          docker compose exec -T airflow-scheduler \
+            bash -c "cd /opt/airflow && PYTHONPATH=/opt/airflow pytest tests_hidden/"
+
+      - name: Stop services
+        if: always()
+        run: docker compose down

@@ -1,0 +1,41 @@
+name: Run Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build containers
+        run: docker compose build
+
+      - name: Start services
+        run: docker compose up -d
+
+      - name: Wait for Airflow scheduler
+        run: |
+          for i in {1..12}; do
+            if docker compose ps airflow-scheduler | grep -q "Up"; then
+              echo "Scheduler is running"
+              exit 0
+            fi
+            echo "Waiting for scheduler..."
+            sleep 10
+          done
+          docker compose logs airflow-scheduler
+          exit 1
+
+      - name: Run tests inside Airflow container
+        run: |
+          docker compose exec -T airflow-scheduler \
+          bash -c "cd /opt/airflow && PYTHONPATH=/opt/airflow pytest tests/"
+
+      - name: Stop services
+        if: always()
+        run: docker compose down

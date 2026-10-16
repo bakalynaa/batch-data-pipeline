@@ -1,0 +1,4 @@
+paths:
+  users: data/raw/users.csv
+  orders: data/raw/orders.csv
+  output: data/curated/daily_revenue_by_country
