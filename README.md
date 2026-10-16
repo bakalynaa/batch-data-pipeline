@@ -270,3 +270,7 @@ You will build a **production-like batch data pipeline** using:
 ```text
 PySpark + Airflow + Parquet
 ```
+
+## Результат запуску
+
+![Airflow DAG run](docs/grid.png)
